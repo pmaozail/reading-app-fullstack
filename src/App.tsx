@@ -1,4 +1,5 @@
 ﻿import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {Capacitor} from '@capacitor/core';
 
 type BookStatus = 'unread' | 'reading' | 'completed';
 
@@ -59,7 +60,47 @@ type ReadingProgressResponse = {
   };
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const STATIC_API_BASE = import.meta.env.VITE_API_BASE_URL;
+const NATIVE_API_CANDIDATES = ['http://10.0.2.2:8787/api', 'http://10.0.3.2:8787/api', 'http://127.0.0.1:8787/api'];
+let resolvedApiBase: string | null = STATIC_API_BASE || null;
+let resolveApiBasePromise: Promise<string> | null = null;
+
+const withTimeout = async (url: string, ms = 2200) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, {signal: controller.signal});
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const getApiBase = async () => {
+  if (resolvedApiBase) return resolvedApiBase;
+  if (!Capacitor.isNativePlatform()) {
+    resolvedApiBase = '/api';
+    return resolvedApiBase;
+  }
+  if (resolveApiBasePromise) return resolveApiBasePromise;
+
+  resolveApiBasePromise = (async () => {
+    for (const candidate of NATIVE_API_CANDIDATES) {
+      try {
+        const response = await withTimeout(`${candidate}/health`);
+        if (response.ok) {
+          resolvedApiBase = candidate;
+          return candidate;
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+    resolvedApiBase = NATIVE_API_CANDIDATES[0];
+    return resolvedApiBase;
+  })();
+
+  return resolveApiBasePromise;
+};
 
 const LOCAL_LIBRARY: AppBook[] = [
   {
@@ -93,7 +134,8 @@ const LOCAL_LIBRARY: AppBook[] = [
 ];
 
 const requestJson = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const apiBase = await getApiBase();
+  const response = await fetch(`${apiBase}${path}`, {
     headers: {'Content-Type': 'application/json'},
     ...init,
   });
@@ -110,10 +152,11 @@ const requestJson = async <T,>(path: string, init?: RequestInit): Promise<T> => 
   return response.json();
 };
 
-const uploadFileWithProgress = (file: File, onProgress: (pct: number) => void) =>
-  new Promise<AppBook>((resolve, reject) => {
+const uploadFileWithProgress = async (file: File, onProgress: (pct: number) => void) => {
+  const apiBase = await getApiBase();
+  return new Promise<AppBook>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API_BASE}/books/upload`);
+    xhr.open('POST', `${apiBase}/books/upload`);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -141,6 +184,7 @@ const uploadFileWithProgress = (file: File, onProgress: (pct: number) => void) =
     formData.append('file', file);
     xhr.send(formData);
   });
+};
 
 export default function App() {
   const [tab, setTab] = useState<'bookshelf' | 'library' | 'profile'>('bookshelf');
@@ -922,4 +966,5 @@ function ReadingView({book, onBack}: {book: AppBook; onBack: () => void}) {
     </div>
   );
 }
+
 

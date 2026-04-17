@@ -2,6 +2,7 @@
 import {posix as pathPosix} from 'node:path';
 import {config as loadEnv} from 'dotenv';
 import express from 'express';
+import cors from 'cors';
 import multer from 'multer';
 import iconv from 'iconv-lite';
 import JSZip from 'jszip';
@@ -87,6 +88,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const app = express();
 const upload = multer({storage: multer.memoryStorage(), limits: {fileSize: 50 * 1024 * 1024}});
 
+app.use(cors());
 app.use(express.json({limit: '2mb'}));
 
 const epubChapterCache = new Map<string, ParsedBookChapters>();

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Reading App</string>
+    <string name="title_activity_main">Reading App</string>
+    <string name="package_name">com.pmaozail.readingapp</string>
+    <string name="custom_url_scheme">com.pmaozail.readingapp</string>
+</resources>
